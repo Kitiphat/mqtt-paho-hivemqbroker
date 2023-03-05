@@ -39,8 +39,9 @@ def publish_data(client):
         # Publish payload chunks to MQTT broker
         for chunk in payload_chunks:
             client.publish(topic, chunk)
+        times.sleep(180)
     print("Sensor data published to MQTT broker.")
-   
+    
 
 # Connect to MQTT broker and publish data every 3 minutes
 client = mqtt.Client()
@@ -48,6 +49,8 @@ client.connect(broker_address, broker_port)
 client.loop_start()
 while True:
     publish_data(client)
-    times.sleep(10)
+
+    
+   
 client.loop_stop()
 client.disconnect()
