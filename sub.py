@@ -53,6 +53,7 @@ def on_message(client, userdata, message):
         # Parse JSON message
         payload = json.loads(buffer)
         # Insert payload data into MySQL database
+        print(payload)
         insert_to_database(payload)
         # Clear buffer
         buffer = ""
