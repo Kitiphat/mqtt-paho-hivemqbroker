@@ -1,53 +1,53 @@
+import pandas as pd
+import paho.mqtt.client as mqtt
+import time as times
+from datetime import datetime
 import random
-import time
-import paho.mqtt.client as paho
 
+# Define MQTT broker settings
+broker_address = "broker.hivemq.com"
+broker_port = 1883
+topic = "7am/mqtt"
 
+# Read sensor data from Excel file
+excel_file = ".\Sampleinput.xlsx"
+data = pd.read_excel(excel_file, index_col=None)
 
+# Publish sensor data to MQTT broker
+def publish_data(client):
+    for _, row in data.iterrows():
+        # Generate random 4-digit node ID
+        node_id = str(random.randint(1000, 9999))
+        tor_IP = "tor01"
+        # Get current time in the format yyyy-mm-dd hh:mm
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-broker = 'broker.mqttdashboard.com'
-port = 1883
-websocket = 8000
-topic = "python/mqtt"
-# generate client ID with pub prefix randomly
-client_id = f'python-mqtt-{random.randint(0, 1000)}'
-username = 'eieiza'
-password = '55587'
+        # Create payload as a dictionary with sensor types as keys and values as lists
+        payload = {
+            "client_ip" : tor_IP,
+            "node_id": node_id,
+            "time": current_time,
+            "relative_humidity": row["Humidity"],
+            "temperature": row["Temperature"],
+            "thermal_array": row["ThermalArray"]
+        }
 
-def connect_mqtt():
-    def on_connect(client, userdata, flags, rc):
-        if rc == 0:
-            print("Connected to MQTT Broker!")
-        else:
-            print("Failed to connect, return code %d\n", rc)
+        # Convert payload to JSON and split into chunks of max 250 bytes
+        payload_json = pd.Series(payload).to_json()
+        payload_chunks = [payload_json[i:i+250] for i in range(0, len(payload_json), 250)]
+       
+        # Publish payload chunks to MQTT broker
+        for chunk in payload_chunks:
+            client.publish(topic, chunk)
+    print("Sensor data published to MQTT broker.")
+   
 
-    client = paho.Client(client_id)
-    client.username_pw_set(username, password)
-    client.on_connect = on_connect
-    client.connect(broker, port)
-    return client
-
-
-def publish(client):
-    msg_count = 0
-    while True:
-        time.sleep(1)
-        msg = f"messages: {msg_count}"
-        result = client.publish(topic, msg)
-        # result: [0, 1]
-        status = result[0]
-        if status == 0:
-            print(f"Send `{msg}` to topic `{topic}`")
-        else:
-            print(f"Failed to send message to topic {topic}")
-        msg_count += 1
-
-
-def run():
-    client = connect_mqtt()
-    client.loop_start()
-    publish(client)
-
-
-if __name__ == '__main__':
-    run()
+# Connect to MQTT broker and publish data every 3 minutes
+client = mqtt.Client()
+client.connect(broker_address, broker_port)
+client.loop_start()
+while True:
+    publish_data(client)
+    times.sleep(10)
+client.loop_stop()
+client.disconnect()

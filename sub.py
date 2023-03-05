@@ -1,47 +1,67 @@
-# python3.6
+import paho.mqtt.client as mqtt
+import json
+import mysql.connector
+# Define MQTT broker settings
+broker_address = "broker.hivemq.com"
+broker_port = 1883
+topic = "7am/mqtt"
 
-import random
+# Define buffer for storing received data
+buffer = ""
 
-from paho.mqtt import client as mqtt_client
+def insert_to_database(payload):
+
+    try:
+        connection = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            password="",
+            database="input_sensor_server"
+        )
+
+        with connection.cursor() as cursor:
+            sql = "INSERT INTO input_sensor (client,NodeID, Time, Humidity, Temperature, ThemalArray) VALUES (%s,%s, NOW(), %s, %s, %s)"
+            values = (
+            payload["client_ip"],
+            payload["node_id"],
+            payload["relative_humidity"],
+            payload["temperature"],
+            payload["thermal_array"]
+)
+            cursor.execute(sql, values)
+        connection.commit()
+        print("Data inserted into MySQL database.")
+    except Exception as e:
+        print(f"Failed to write to MySQL database: {e}")
+    finally:
+        connection.close()
 
 
-broker = 'broker.mqttdashboard.com'
-port = 1883
-websocket = 8000
-topic = "python/mqtt"
-# generate client ID with pub prefix randomly
-client_id = f'python-mqtt-{random.randint(0, 1000)}'
-username = 'admin'
-password = 'hivemq'
-
-
-def connect_mqtt() -> mqtt_client:
-    def on_connect(client, userdata, flags, rc):
-        if rc == 0:
-            print("Connected to MQTT Broker!")
-        else:
-            print("Failed to connect, return code %d\n", rc)
-
-    client = mqtt_client.Client(client_id)
-    client.username_pw_set(username, password)
-    client.on_connect = on_connect
-    client.connect(broker, port)
-    return client
-
-
-def subscribe(client: mqtt_client):
-    def on_message(client, userdata, msg):
-        print(f"Received `{msg.payload.decode()}` from `{msg.topic}` topic")
-
+# Define on_connect callback function
+def on_connect(client, userdata, flags, rc):
+    print("Connected to MQTT broker with result code "+str(rc))
+    # Subscribe to topic
     client.subscribe(topic)
-    client.on_message = on_message
 
+# Define on_message callback function
+def on_message(client, userdata, message):
+    global buffer
+    # Append received data to buffer
+    buffer += message.payload.decode()
+    # Check if buffer contains entire message
+    if buffer.endswith("}"):
+        # Parse JSON message
+        payload = json.loads(buffer)
+        # Insert payload data into MySQL database
+        insert_to_database(payload)
+        # Clear buffer
+        buffer = ""
 
-def run():
-    client = connect_mqtt()
-    subscribe(client)
-    client.loop_forever()
+# Create MQTT client and set callbacks
+client = mqtt.Client()
+client.on_connect = on_connect
+client.on_message = on_message
 
-
-if __name__ == '__main__':
-    run()
+# Connect to MQTT broker and start loop
+client.connect(broker_address, broker_port)
+client.loop_forever()
