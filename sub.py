@@ -34,6 +34,7 @@ def insert_to_database(payload):
     except Exception as e:
         print(f"Failed to write to MySQL database: {e}")
     finally:
+        cursor.close()
         connection.close()
 
 
